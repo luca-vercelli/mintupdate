@@ -645,6 +645,7 @@ class RefreshThread(threading.Thread):
             # Look at the updates one by one
             package_updates = {}
             package_names = Set()
+            packages_auto_upgrade = Set()
             num_visible = 0
             num_safe = 0            
             download_size = 0
@@ -655,7 +656,7 @@ class RefreshThread(threading.Thread):
                 for blacklist_line in blacklist_file:
                     ignored_list.append(blacklist_line.strip())
                 blacklist_file.close()                
-
+            
             if (len(updates) == None):
                 gtk.gdk.threads_enter()
                 self.wTree.get_widget("notebook_status").set_current_page(TAB_UPTODATE)
@@ -805,17 +806,19 @@ class RefreshThread(threading.Thread):
                         package_update.description = clean_l10n_description(package_update.description)
                     
                     security_update = (package_update.type == "security")
-
+                    
                     if ((prefs["level" + str(package_update.level) + "_visible"]) or (security_update and prefs['security_visible'])):
                         iter = model.insert_before(None, None)
                         if (security_update and prefs['security_safe']):
                             model.set_value(iter, UPDATE_CHECKED, "true")                            
                             num_safe = num_safe + 1
                             download_size = download_size + package_update.size
+                            packages_auto_upgrade.add(package_update)
                         elif (prefs["level" + str(package_update.level) + "_safe"]):                            
                             model.set_value(iter, UPDATE_CHECKED, "true")                     
                             num_safe = num_safe + 1
                             download_size = download_size + package_update.size
+                            packages_auto_upgrade.add(package_update)
                         else:
                             model.set_value(iter, UPDATE_CHECKED, "false")
                                                                               
@@ -896,7 +899,13 @@ class RefreshThread(threading.Thread):
             self.wTree.get_widget("window1").set_sensitive(True)
             wTree.get_widget("vpaned1").set_position(vpaned_position)
             gtk.gdk.threads_leave()
-
+            
+            if prefs["auto_upgrade"] == True and len(packages_auto_upgrade) > 0:
+                log.writelines("++ Automatic upgrade...\n")
+                log.flush()
+                install(self.treeview_update, self.statusIcon, self.wTree)
+                
+                
         except Exception, detail:
             print "-- Exception occured in the refresh thread: " + str(detail)
             log.writelines("-- Exception occured in the refresh thread: " + str(detail) + "\n")
@@ -1025,6 +1034,7 @@ def pref_apply(widget, prefs_tree, treeview, statusIcon, wTree):
     config['general'] = {}
     config['general']['hide_window_after_update'] = prefs_tree.get_widget("checkbutton_hide_window_after_update").get_active()
     config['general']['hide_systray'] = prefs_tree.get_widget("checkbutton_hide_systray").get_active()
+    config['general']['auto_upgrade'] = prefs_tree.get_widget("checkbutton_auto_upgrade").get_active()
 
     #Write level config
     config['levels'] = {}
@@ -1110,6 +1120,11 @@ def read_configuration():
         prefs["hide_systray"] = (config['general']['hide_systray'] == "True")
     except:
         prefs["hide_systray"] = False
+
+    try:
+        prefs["auto_upgrade"] = (config['general']['auto_upgrade'] == "True")
+    except:
+        prefs["auto_upgrade"] = False
 
     #Read refresh config
     try:
@@ -1276,6 +1291,7 @@ def open_preferences(widget, treeview, statusIcon, wTree):
     prefs_tree.get_widget("checkbutton_dist_upgrade").set_label(_("Include updates which require the installation of new packages or the removal of installed packages"))
     prefs_tree.get_widget("checkbutton_hide_window_after_update").set_label(_("Hide the update manager after applying updates"))
     prefs_tree.get_widget("checkbutton_hide_systray").set_label(_("Only show a tray icon when updates are available or in case of errors"))
+    prefs_tree.get_widget("checkbutton_auto_upgrade").set_label(_("Automatic upgrade for visible and safe packages"))
 
     prefs_tree.get_widget("window2").set_icon_from_file("/usr/lib/linuxmint/mintUpdate/icons/base.svg")
     prefs_tree.get_widget("window2").show()
@@ -1317,6 +1333,7 @@ def open_preferences(widget, treeview, statusIcon, wTree):
     prefs_tree.get_widget("checkbutton_dist_upgrade").set_active(prefs["dist_upgrade"])
     prefs_tree.get_widget("checkbutton_hide_window_after_update").set_active(prefs["hide_window_after_update"])
     prefs_tree.get_widget("checkbutton_hide_systray").set_active(prefs["hide_systray"])
+    prefs_tree.get_widget("checkbutton_auto_upgrade").set_active(prefs["auto_upgrade"])
 
     prefs_tree.get_widget("image_busy").set_from_pixbuf(gtk.gdk.pixbuf_new_from_file_at_size(icon_busy, 24, 24))
     prefs_tree.get_widget("image_up2date").set_from_pixbuf(gtk.gdk.pixbuf_new_from_file_at_size(icon_up2date, 24, 24))
