@@ -16,6 +16,7 @@ try:
     import fnmatch
     import urllib2
     import re
+    from datetime import datetime, timedelta
     from user import home
     from sets import Set
     import proxygsettings
@@ -901,16 +902,19 @@ class RefreshThread(threading.Thread):
             gtk.gdk.threads_leave()
             
             print "DEBUG auto upgrading?",prefs["auto_upgrade"]," len(packages_auto_upgrade)=",len(packages_auto_upgrade)
-            if prefs["auto_upgrade"] == True and len(packages_auto_upgrade) > 0:
-                print "DEBUG: automatic upgrading..."
-                #FIXME: should not proceed if update failed
-                #FIXME: upgrade should be silent
-                #FIXME: if previous upgrade failed, must not run again!!!
-                log.writelines("++ Automatic upgrade...\n")
-                log.flush()
-                install(None, self.treeview_update, self.statusIcon, self.wTree)
-                print "DEBUG: automatic upgrade thread started."
-                
+            #at least 10 minutes between two automatic upgrade, because
+            #if previous upgrade failed, must not run again!
+            print "DEBUG. auto_upgrade_timestamp=",prefs["auto_upgrade_timestamp"]," vs. ",datetime.now() - timedelta(0,0,0,0,10)
+            if prefs["auto_upgrade_timestamp"] < datetime.now() - timedelta(0,0,0,0,10): 
+                if prefs["auto_upgrade"] == True and len(packages_auto_upgrade) > 0:
+                    print "DEBUG: automatic upgrading..."
+                    #FIXME: should not proceed if update failed
+                    #FIXME: upgrade should be silent
+                    log.writelines("++ Automatic upgrade...\n")
+                    log.flush()
+                    install(None, self.treeview_update, self.statusIcon, self.wTree)
+                    print "DEBUG: automatic upgrade thread started."
+                    prefs["auto_upgrade_timestamp"] = datetime.now()
                 
         except Exception, detail:
             print "-- Exception occured in the refresh thread: " + str(detail)
@@ -1132,6 +1136,12 @@ def read_configuration():
     except:
         prefs["auto_upgrade"] = False
 
+    try:
+        print "DEBUG. HERE ",config['general']['auto_upgrade_timestamp']
+        prefs["auto_upgrade_timestamp"] = datetime.fromtimestamp(config['general']['auto_upgrade_timestamp'])
+    except:
+        prefs["auto_upgrade_timestamp"] = datetime(1900,1,1)
+        
     #Read refresh config
     try:
         prefs["timer_minutes"] = int(config['refresh']['timer_minutes'])
