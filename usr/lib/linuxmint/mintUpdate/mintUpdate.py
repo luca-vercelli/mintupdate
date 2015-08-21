@@ -64,6 +64,8 @@ KERNEL_INFO_DIR = "/usr/share/mint-kernel-info"
 
 (TAB_UPDATES, TAB_UPTODATE, TAB_ERROR) = range(3)
 
+DATETIME_FORMAT = "%Y-%m-%d-%H:%M:%S"
+
 package_short_descriptions = {}
 package_descriptions = {}
 
@@ -901,21 +903,25 @@ class RefreshThread(threading.Thread):
             wTree.get_widget("vpaned1").set_position(vpaned_position)
             gtk.gdk.threads_leave()
             
-            print "DEBUG auto upgrading?",prefs["auto_upgrade"]," len(packages_auto_upgrade)=",len(packages_auto_upgrade)
             #at least 10 minutes between two automatic upgrade, because
             #if previous upgrade failed, must not run again!
-            print "DEBUG. auto_upgrade_timestamp=",prefs["auto_upgrade_timestamp"]," vs. ",datetime.now() - timedelta(0,0,0,0,10)
+            #print "DEBUG auto upgrading?",prefs["auto_upgrade"]," len(packages_auto_upgrade)=",len(packages_auto_upgrade)
+            #print "DEBUG. auto_upgrade_timestamp=",prefs["auto_upgrade_timestamp"]," vs. ",datetime.now() - timedelta(0,0,0,0,10)
             if prefs["auto_upgrade_timestamp"] < datetime.now() - timedelta(0,0,0,0,10): 
                 if prefs["auto_upgrade"] == True and len(packages_auto_upgrade) > 0:
                     print "DEBUG: automatic upgrading..."
                     #FIXME: should not proceed if update failed
-                    #FIXME: upgrade should be silent
+                    #FIXME: upgrade should be silent... but you should be root...
                     log.writelines("++ Automatic upgrade...\n")
                     log.flush()
-                    install(None, self.treeview_update, self.statusIcon, self.wTree)
-                    print "DEBUG: automatic upgrade thread started."
+                    
                     prefs["auto_upgrade_timestamp"] = datetime.now()
-                
+                    config = ConfigObj("%s/mintUpdate.conf" % CONFIG_DIR)
+                    config['general']['auto_upgrade_timestamp'] = prefs["auto_upgrade_timestamp"].strftime(DATETIME_FORMAT)
+                    config.write()
+                    
+                    install(None, self.treeview_update, self.statusIcon, self.wTree)
+
         except Exception, detail:
             print "-- Exception occured in the refresh thread: " + str(detail)
             log.writelines("-- Exception occured in the refresh thread: " + str(detail) + "\n")
@@ -1137,10 +1143,9 @@ def read_configuration():
         prefs["auto_upgrade"] = False
 
     try:
-        print "DEBUG. HERE ",config['general']['auto_upgrade_timestamp']
-        prefs["auto_upgrade_timestamp"] = datetime.fromtimestamp(config['general']['auto_upgrade_timestamp'])
+        prefs["auto_upgrade_timestamp"] = datetime.strptime(config['general']['auto_upgrade_timestamp'], DATETIME_FORMAT)
     except:
-        prefs["auto_upgrade_timestamp"] = datetime(1900,1,1)
+        prefs["auto_upgrade_timestamp"] = datetime(1970,1,1)
         
     #Read refresh config
     try:
