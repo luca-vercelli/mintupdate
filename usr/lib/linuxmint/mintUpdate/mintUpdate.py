@@ -900,10 +900,16 @@ class RefreshThread(threading.Thread):
             wTree.get_widget("vpaned1").set_position(vpaned_position)
             gtk.gdk.threads_leave()
             
+            print "DEBUG auto upgrading?",prefs["auto_upgrade"]," len(packages_auto_upgrade)=",len(packages_auto_upgrade)
             if prefs["auto_upgrade"] == True and len(packages_auto_upgrade) > 0:
+                print "DEBUG: automatic upgrading..."
+                #FIXME: should not proceed if update failed
+                #FIXME: upgrade should be silent
+                #FIXME: if previous upgrade failed, must not run again!!!
                 log.writelines("++ Automatic upgrade...\n")
                 log.flush()
-                install(self.treeview_update, self.statusIcon, self.wTree)
+                install(None, self.treeview_update, self.statusIcon, self.wTree)
+                print "DEBUG: automatic upgrade thread started."
                 
                 
         except Exception, detail:
